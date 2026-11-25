@@ -35,6 +35,7 @@ export async function playFull(canvas, content = new URL('./content/', import.me
     let wasm, cells, lastError, image, stopped = false, timer;
     let audio, audioPaused = false, audioEnd = 0;
     let album, albumTrack = null, albumLoad, albumNode;
+    let albumVolume = 0, albumGain;
     const waiting = new Map(), scheduled = new Set();
     const masks = new Map();
 
@@ -108,6 +109,9 @@ export async function playFull(canvas, content = new URL('./content/', import.me
     function unlockAudio() {
         if (!audio) {
             audio = new AudioContext({latencyHint:'interactive'});
+            albumGain = audio.createGain();
+            albumGain.gain.value = albumVolume;
+            albumGain.connect(audio.destination);
             for (const [header, samples] of waiting) scheduleAudio(header, samples);
             waiting.clear();
             if (albumTrack) playAlbumTrack();
@@ -135,7 +139,7 @@ export async function playFull(canvas, content = new URL('./content/', import.me
             node.loop = true;
             node.loopStart = track.loopStart;
             node.loopEnd = Math.min(track.loopEnd, buffer.duration);
-            node.connect(audio.destination);
+            node.connect(albumGain);
             node.start();
             albumNode = node;
         } catch (error) {
@@ -224,6 +228,10 @@ export async function playFull(canvas, content = new URL('./content/', import.me
             stopAlbumTrack();
             albumTrack = album[track];
             if (audio) void playAlbumTrack();
+        },
+        akyuGain(gain) {
+            albumVolume = gain;
+            if (albumGain) albumGain.gain.value = gain;
         },
     };
     const [module, names, atlas] = await Promise.all([
